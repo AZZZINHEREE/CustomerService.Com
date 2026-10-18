@@ -1,0 +1,287 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AZZZ&TEAM CS</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b1120;
+      color: #f8fafc;
+    }
+    header {
+      padding: 22px 15px;
+      text-align: center;
+      background: #111c32;
+      border-bottom: 1px solid #263650;
+    }
+    header h1 { margin: 0; color: #60a5fa; }
+    header p { color: #aab9cf; }
+    main { max-width: 650px; margin: 28px auto; padding: 16px; }
+    .card {
+      background: #142036;
+      border: 1px solid #293b57;
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    h2 { margin-top: 0; }
+    input, textarea {
+      width: 100%;
+      padding: 13px;
+      margin: 8px 0 14px;
+      border-radius: 9px;
+      border: 1px solid #435570;
+      background: #0b1120;
+      color: white;
+      font: inherit;
+    }
+    textarea { min-height: 130px; resize: vertical; }
+    button {
+      width: 100%;
+      padding: 13px;
+      margin: 5px 0;
+      border: 0;
+      border-radius: 9px;
+      background: #3b82f6;
+      color: white;
+      font-weight: bold;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button.secondary { background: #263650; }
+    button.danger { background: #b91c1c; }
+    button:disabled { opacity: .6; }
+    .hidden { display: none; }
+    .complaint {
+      padding: 14px;
+      margin: 12px 0;
+      border-radius: 10px;
+      background: #0b1120;
+      border: 1px solid #293b57;
+      overflow-wrap: anywhere;
+    }
+    .muted { color: #aab9cf; font-size: 13px; }
+    #status { white-space: pre-wrap; margin-top: 12px; }
+    footer { text-align: center; padding: 20px; color: #8293ad; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>AZZZ&TEAM CS</h1>
+  <p>Customer Service & Pusat Pengaduan</p>
+</header>
+
+<main>
+  <section id="home" class="card">
+    <h2>Selamat datang!</h2>
+    <p>Pilih layanan yang kamu butuhkan.</p>
+    <button onclick="showPage('submit')">Berikan Keluhan</button>
+    <button class="secondary" onclick="showPage('login')">
+      Lihat Keluhan (Admin)
+    </button>
+  </section>
+
+  <section id="submit" class="card hidden">
+    <h2>Kirim Keluhan</h2>
+    <p class="muted">Tidak perlu username atau password.</p>
+    <form id="complaintForm">
+      <label for="complaint">Tuliskan keluhanmu</label>
+      <textarea id="complaint" maxlength="3000"
+        placeholder="Jelaskan keluhan kamu..." required></textarea>
+      <button id="sendBtn" type="submit">Kirim Keluhan</button>
+    </form>
+    <button class="secondary" onclick="showPage('home')">Kembali</button>
+  </section>
+
+  <section id="login" class="card hidden">
+    <h2>Login Admin</h2>
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username"
+        placeholder="Masukkan username" required>
+      <label for="password">Password</label>
+      <input id="password" type="password"
+        autocomplete="current-password"
+        placeholder="Masukkan password" required>
+      <button type="submit">Login</button>
+    </form>
+    <button class="secondary" onclick="showPage('home')">Kembali</button>
+  </section>
+
+  <section id="dashboard" class="card hidden">
+    <h2>Daftar Keluhan</h2>
+    <p class="muted">Halaman khusus admin AZZZ&TEAM CS.</p>
+    <button class="secondary" onclick="loadComplaints()">
+      Muat Ulang Keluhan
+    </button>
+    <div id="complaintList">Memuat keluhan...</div>
+    <button class="danger" onclick="logout()">Logout</button>
+  </section>
+
+  <section id="notice" class="card hidden">
+    <p id="status" role="status" aria-live="polite"></p>
+    <button class="secondary" onclick="showPage('home')">
+      Kembali ke Menu
+    </button>
+  </section>
+</main>
+
+<footer>© 2026 AZZZ&TEAM CS</footer>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+  // GANTI dengan konfigurasi Firebase milikmu.
+  const firebaseConfig = {
+    apiKey: "ISI_API_KEY",
+    authDomain: "ISI_PROJECT_ID.firebaseapp.com",
+    projectId: "ISI_PROJECT_ID",
+    appId: "ISI_APP_ID"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  // Username publik admin dipetakan ke akun Firebase Auth.
+  const ADMIN_USERNAME = "AZZZ STUREE";
+  const ADMIN_EMAIL = "admin@azzzteamcs.com";
+
+  function showPage(page) {
+    document.querySelectorAll("main > section").forEach(section => {
+      section.classList.add("hidden");
+    });
+    document.getElementById(page).classList.remove("hidden");
+  }
+
+  function showNotice(message) {
+    document.getElementById("status").textContent = message;
+    showPage("notice");
+  }
+
+  // Pengunjung dapat mengirim keluhan tanpa login.
+  document.getElementById("complaintForm").addEventListener(
+    "submit", async event => {
+      event.preventDefault();
+
+      const complaint = document.getElementById("complaint")
+        .value.trim();
+      const sendBtn = document.getElementById("sendBtn");
+
+      if (complaint.length < 3) {
+        alert("Keluhan minimal 3 karakter.");
+        return;
+      }
+
+      sendBtn.disabled = true;
+
+      try {
+        await db.collection("complaints").add({
+          message: complaint,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        document.getElementById("complaintForm").reset();
+        showNotice("Keluhan berhasil dikirim. Terima kasih!");
+      } catch (error) {
+        console.error(error);
+        showNotice("Keluhan gagal dikirim. Periksa koneksi atau konfigurasi Firebase.");
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+  );
+
+  // Username diperiksa, password diverifikasi oleh Firebase Auth.
+  document.getElementById("loginForm").addEventListener(
+    "submit", async event => {
+      event.preventDefault();
+
+      const username = document.getElementById("username")
+        .value.trim();
+      const password = document.getElementById("password").value;
+
+      if (username !== ADMIN_USERNAME) {
+        alert("Username atau password salah.");
+        return;
+      }
+
+      try {
+        await auth.signInWithEmailAndPassword(ADMIN_EMAIL, password);
+        document.getElementById("loginForm").reset();
+        showPage("dashboard");
+        await loadComplaints();
+      } catch (error) {
+        console.error(error);
+        alert("Login gagal. Periksa username dan password.");
+      }
+    }
+  );
+
+  async function loadComplaints() {
+    const list = document.getElementById("complaintList");
+    list.textContent = "Memuat keluhan...";
+
+    if (!auth.currentUser ||
+        auth.currentUser.email !== ADMIN_EMAIL) {
+      list.textContent = "Akses ditolak. Silakan login sebagai admin.";
+      return;
+    }
+
+    try {
+      const snapshot = await db.collection("complaints")
+        .orderBy("createdAt", "desc")
+        .get();
+
+      list.replaceChildren();
+
+      if (snapshot.empty) {
+        list.textContent = "Belum ada keluhan.";
+        return;
+      }
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const item = document.createElement("article");
+        item.className = "complaint";
+
+        const message = document.createElement("p");
+        message.textContent = data.message || "(Keluhan kosong)";
+
+        const date = document.createElement("p");
+        date.className = "muted";
+        date.textContent = data.createdAt
+          ? data.createdAt.toDate().toLocaleString("id-ID")
+          : "Waktu belum tersedia";
+
+        item.append(message, date);
+        list.appendChild(item);
+      });
+    } catch (error) {
+      console.error(error);
+      list.textContent = "Gagal memuat keluhan. Periksa Firebase Rules.";
+    }
+  }
+
+  async function logout() {
+    await auth.signOut();
+    showPage("home");
+  }
+
+  auth.onAuthStateChanged(user => {
+    if (!user && !document.getElementById("dashboard").classList.contains("hidden")) {
+      showPage("home");
+    }
+  });
+</script>
+</body>
+</html>
